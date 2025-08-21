@@ -120,26 +120,38 @@ def clear_all_filters():
     st.rerun()
 
 def discover_repo_csv() -> Path | None:
-    # Prefer explicit path via Secrets/Env
-    if "DATASET_PATH" in st.secrets:
-        p = (APP_DIR / st.secrets["DATASET_PATH"]).resolve()
+    # Prefer explicit path via Secrets/Env, but don't crash if secrets.toml is missing
+    ds = None
+    try:
+        # Use .get(...) if available, but wrap in try/except because any access can parse/raise
+        ds = st.secrets.get("DATASET_PATH", None)  # type: ignore[attr-defined]
+    except Exception:
+        ds = None
+
+    if ds:
+        p = (APP_DIR / str(ds)).resolve()
         if p.exists():
             return p
-    if os.environ.get("DATASET_PATH"):
-        p = (APP_DIR / os.environ["DATASET_PATH"]).resolve()
+
+    ds_env = os.environ.get("DATASET_PATH")
+    if ds_env:
+        p = (APP_DIR / ds_env).resolve()
         if p.exists():
             return p
+
     # Common names in root
     for name in ("bhb_studies.csv", "studies.csv", "dataset.csv"):
         p = (APP_DIR / name).resolve()
         if p.exists():
             return p
+
     # Fallback: first CSV in root, then ./data
     candidates = list(APP_DIR.glob("*.csv"))
     data_dir = APP_DIR / "data"
     if not candidates and data_dir.exists():
         candidates = list(data_dir.glob("*.csv"))
     return candidates[0].resolve() if candidates else None
+
 
 # ---------- Data (auto-load from repo; no dataset section) ----------
 csv_path = discover_repo_csv()
